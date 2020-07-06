@@ -1,0 +1,398 @@
+---
+title: "Stock Analysis of DIA, AAPL, AMZN, and TSLA"
+author: "Cordell D. Jones"
+date: "07/03/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+# Summary 
+
+The below analysis studies stock data from the Dow Industrial Average (DIA), Apple Inc. (AAPL), Amazon Inc. (AMZZN), and Tesla Inc. (TSLA). This analysis focuses on that of the stock’s volatility, volatility in the correlation of news-impact, and then a simulation forecast of the stock’s continuing trading year. 
+
+For the analysis and simulation, GARCH models were used. The GARCH acronym stands for Generalized, AutoRegressive, Conditional, Heteroscedasticity. Heteroscedasticity means that variances do not remain the same as the value of time. This means GARCH models are well suited for time-series data that are highly volatile such as that of stock data 
+
+![](https://png.pngtree.com/thumb_back/fw800/back_our/20190625/ourmid/pngtree-financial-economy-stock-banner-poster-image_261098.jpg)
+
+```{r Libraries, message=FALSE, warning=FALSE, include=FALSE}
+# Libraries
+library(quantmod)
+library(xts)
+library(PerformanceAnalytics)
+library(rugarch)
+```
+
+### Analyzed Stocks Performance
+
+```{r Stocks, message=FALSE, warning=FALSE}
+# DIA Daily
+getSymbols("DIA",
+           from = "2005-01-01",
+           to = "2020-07-02")
+chartSeries(DIA["2019-12"])
+chartSeries(DIA)
+
+# AAPL Daily
+getSymbols("AAPL",
+           from = "2005-01-01",
+           to = "2020-07-02")
+chartSeries(AAPL["2019-12"])
+chartSeries(AAPL)
+
+# AMZN Daily
+getSymbols("AMZN",
+           from = "2005-01-01",
+           to = "2020-07-02")
+chartSeries(AMZN["2019-12"])
+chartSeries(AMZN)
+
+# TSLA Daily
+getSymbols("TSLA",
+           from = "2005-01-01",
+           to = "2020-07-02")
+chartSeries(TSLA["2019-12"])
+chartSeries(TSLA)
+```
+
+### Daily Returns
+
+The histograms illustrate the expected daily returns for the analyzed index and stocks. Sometimes some days will give a return and others that they will show diminishing returns. The second set of histograms gives a bit more information with the colored lines. The green line represents stocks' daily opening price, and the red represents the closing. 
+
+The Chart Series chart with the green lines shows the daily volatility of each stock. Where there are peaks in the green lines, show higher volatility for that stock on that day. Throughout time, there have been many instances for each stock where they have been volatile. To which we can blame due to world events such as the 2008 recession and most recently with that of the economic impact of the coronavirus.
+
+```{r Daily Returns, message=FALSE, warning=FALSE}
+# Daily Returns for DIA
+return.dia <- CalculateReturns(DIA$DIA.Close)
+return.dia <- return.dia[-1]
+hist(return.dia)
+chart.Histogram(return.dia,
+                methods = c('add.density', 'add.normal'),
+                colorset = c('blue', 'green', 'red'))
+chartSeries(return.dia, theme = 'white')
+
+# Daily Returns for AAPL
+return.aapl <- CalculateReturns(AAPL$AAPL.Close)
+return.aapl <- return.aapl[-1]
+hist(return.aapl)
+chart.Histogram(return.aapl,
+                methods = c('add.density', 'add.normal'),
+                colorset = c('blue', 'green', 'red'))
+chartSeries(return.aapl, theme = 'white')
+
+# Daily Returns for AMZN
+return.amzn <- CalculateReturns(AMZN$AMZN.Close)
+return.amzn <- return.amzn[-1]
+hist(return.amzn)
+chart.Histogram(return.amzn,
+                methods = c('add.density', 'add.normal'),
+                colorset = c('blue', 'green', 'red'))
+chartSeries(return.amzn, theme = 'white')
+
+# Daily Returns for TSLA
+return.tsla <- CalculateReturns(TSLA$TSLA.Close)
+return.tsla <- return.tsla[-1]
+hist(return.tsla)
+chart.Histogram(return.tsla,
+                methods = c('add.density', 'add.normal'),
+                colorset = c('blue', 'green', 'red'))
+chartSeries(return.tsla, theme = 'white')
+```
+
+### Anualized Volatility 
+
+The below plots take the Chart Series charts above and annualizes them in an annual format. These plots give a better visual for each stock. Again, where there are vertical peaks show higher volatility for that stock on that day. As we can tell, there have been many instances for each stock where they have been volatile throughout time. 
+
+```{r Annualized Volatility, message=FALSE, warning=FALSE}
+# Annualized volatility for DIA
+sd(return.dia)
+sqrt(252) * sd(return.dia["2019"])
+chart.RollingPerformance(R = return.dia["2008::2020"],
+                         width = 52,
+                         FUN = "sd.annualized",
+                         scale = 252,
+                         main = "Dow Industiral Average's Monthly Rolling Volatility")
+# Annualized volatility for AAPL
+sd(return.aapl)
+sqrt(252) * sd(return.aapl["2019"])
+chart.RollingPerformance(R = return.aapl["2008::2020"],
+                         width = 52,
+                         FUN = "sd.annualized",
+                         scale = 252,
+                         main = "Apple Inc. Monthly Rolling Volatility")
+# Annualized volatility for AMZN
+sd(return.amzn)
+sqrt(252) * sd(return.amzn["2019"])
+chart.RollingPerformance(R = return.amzn["2008::2020"],
+                         width = 52,
+                         FUN = "sd.annualized",
+                         scale = 252,
+                         main = "Amazon Inc. Monthly Rolling Volatility")
+# Annualized volatility for TSLA
+sd(return.tsla)
+sqrt(252) * sd(return.tsla["2019"])
+chart.RollingPerformance(R = return.tsla["2008::2020"],
+                         width = 52,
+                         FUN = "sd.annualized",
+                         scale = 252,
+                         main = "Tesla Inc. Monthly Rolling Volatility")
+```
+
+### sGARCH Models With Constant Mean  
+
+Below are standard GARCH (sGARCH) for each stock. A GARCH model will give four parameters for variables such as mu, omega, alpha1, and beta1. We check the p-value of each to see if the model is statistically significant, which all gave a value of 0, thus confirming significance. These parameter values are then entered into the models' equation.
+
+The GARCH model also gives four other values in the form of Information Criteria. These values being Akaine, Bayes, Shibata, and Hannan-Quinn. The lower these four values are, the simpler the model. When determining which model to use for the later simulation, we choose to use the simpler lower value model. These models prove to be the most accurate. When using a GARCH model will give back twelve plots. These being:
+
+Series with 2 Conditional SD Superimposed  
+Series with 1% VaR Limits  
+Conditional SD (vs |returns|)  
+ACF of Observations  
+ACF of Squared Observations  
+ACF of Absolute Observations   
+Cross Correlation  
+Empirical Density of Standardized Residuals  
+QQ-Plot of Standardized Residuals  
+ACF of Standardized Residuals  
+ACF of Squared Standardized Residuals  
+News-Impact Curve  
+
+```{r sGARCH Models, message=FALSE, warning=FALSE}
+# DIA
+s.dia <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                variance.model = list(model = "sGARCH"),
+                distribution.model = 'norm')
+m.dia <- ugarchfit(data = return.dia, spec = s.dia)
+plot(m.dia, which = 'all')
+f.dia <- ugarchforecast(fitORspec = m.dia,
+                    n.ahead = 20)
+# AAPL
+s.aapl <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                variance.model = list(model = "sGARCH"),
+                distribution.model = 'norm')
+m.aapl <- ugarchfit(data = return.aapl, spec = s.aapl)
+plot(m.aapl, which = 'all')
+f.aapl <- ugarchforecast(fitORspec = m.aapl,
+                    n.ahead = 20)
+# AMZN
+s.amzn <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                variance.model = list(model = "sGARCH"),
+                distribution.model = 'norm')
+m.amzn <- ugarchfit(data = return.amzn, spec = s.amzn)
+plot(m.amzn, which = 'all')
+f.amzn <- ugarchforecast(fitORspec = m.amzn,
+                    n.ahead = 20)
+# TSLA
+s.tsla <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                variance.model = list(model = "sGARCH"),
+                distribution.model = 'norm')
+m.tsla <- ugarchfit(data = return.tsla, spec = s.tsla)
+plot(m.tsla, which = 'all')
+f.tsla <- ugarchforecast(fitORspec = m.tsla,
+                    n.ahead = 20)
+```
+
+### Volatility to Increase/Decrease
+
+We can take the sGARCH models above and complete a volatility forecast for each analyzed stock. This forecast is represented in the below two plots. The first plot for each stock shows a flat line, as this is a constant mean model. The second plot shows whither the stock's volatility is expected to increase or decrease. 
+
+As of 07/05/2020, the following month forecast predicts that the Dow Industrial Average and Tesla Inc. volatility is expected to decrease while Apple Inc. and Amazon Inc. are expected to increase.
+
+```{r Plot To See If Volatility Will Dec/Inc}
+# DIA
+plot(fitted(f.dia))
+plot(sigma(f.dia))
+# AAPL
+plot(fitted(f.aapl))
+plot(sigma(f.aapl))
+# AMZN
+plot(fitted(f.amzn))
+plot(sigma(f.amzn))
+# TSLA
+plot(fitted(f.tsla))
+plot(sigma(f.tsla))
+```
+
+### Applications - Portfolio Allocation
+
+The v variable and top plot of each stock represent the volatility of the stock. The w variable and bottom plot of each stock represent the rate that we can increase in a riskier asset. The percentage divided by v represents the percentage of volatility that one would aim to achieve. As we can see, v and w are directly correlated as volatility increases the rate assigned to riskier assets decreases and vice versa. 
+
+To calculate the amount of a risk asset for portfolio allocation, take the tail value of w and multiply that by the total portfolio amount.
+
+```{r Applications - Portfolio Allocation}
+# DIA
+v.dia <- sqrt(252) * sigma(m.dia)
+w.dia <- 0.05/v.dia
+plot(merge(v.dia, w.dia),
+     multi.panel = T)
+
+# AAPL
+v.aapl <- sqrt(252) * sigma(m.aapl)
+w.aapl <- 0.05/v.aapl
+plot(merge(v.aapl, w.aapl),
+     multi.panel = T)
+
+# AMZN
+v.amzn <- sqrt(252) * sigma(m.amzn)
+w.amzn <- 0.05/v.amzn
+plot(merge(v.amzn, w.amzn),
+     multi.panel = T)
+
+# TSLA
+v.tsla <- sqrt(252) * sigma(m.tsla)
+w.tsla <- 0.05/v.tsla
+plot(merge(v.tsla, w.tsla),
+     multi.panel = T)
+
+```
+### GJR-GARCH Model Analysis
+
+Glosten-Jagannathan-Runkle developed the GJR-GARCH Model. By doing this model, we see a significant change in the News-Impact Curve chart. As it does not show the asymmetrical impact of positive and negative news as seen in prior models. 
+
+This model shows the correlation of negative of positive news in how drastic it impacts the price of a stock. As shown, the positive news has a gradual impact, as seen in a bull market, and negative news has an immensely more significant impact, as seen in a bear market. 
+
+```{r GJR-GARCH Analysis, message=FALSE, warning=FALSE}
+# DIA
+s.dia <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                variance.model = list(model = "gjrGARCH"),
+                distribution.model = 'sstd')
+m.dia <- ugarchfit(data = return.dia, spec = s.dia)
+plot(m.dia, which = 'all')
+# AAPL
+s.aapl <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                variance.model = list(model = "gjrGARCH"),
+                distribution.model = 'sstd')
+m.aapl <- ugarchfit(data = return.aapl, spec = s.aapl)
+plot(m.aapl, which = 'all')
+# AMZN
+s.amzn <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                variance.model = list(model = "gjrGARCH"),
+                distribution.model = 'sstd')
+m.amzn <- ugarchfit(data = return.amzn, spec = s.amzn)
+plot(m.amzn, which = 'all')
+# TSLA 
+s.tsla <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                variance.model = list(model = "gjrGARCH"),
+                distribution.model = 'sstd')
+m.tsla <- ugarchfit(data = return.tsla, spec = s.tsla)
+plot(m.tsla, which = 'all')
+```
+
+### Stock Simulation Analysis
+
+The GJR-GARCH model was used for all stocks in that it showed to have the lowest Information Criteria out of the five GARCH models. Using the model, we can insert the data in a simulation forecast.
+
+We plot a volatility forecast first that analyzes the predicted volatility for the years of 2008 and 2019 for each stock. 
+
+We then do a simulation forecast using the ugarchforecast function. We place 3 for m.sim to return three different simulated returns for each stock for analysis. We do this forecast for the next trading year. Taking this data, we can insert these return values back into share data by taking the closing prices of each stock as of 07/05/2020. Doing such, we can receive a simulation of share prices for the remainder of the 2020 year with three different predictions. 
+
+```{r Simulation}
+# DIA
+s.dia <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                variance.model = list(model = "gjrGARCH"),
+                distribution.model = 'sstd')
+m.dia <- ugarchfit(data = return.dia, spec = s.dia)
+plot(m.dia, which = 'all')
+sfinal.dia <- s.dia
+setfixed(sfinal.dia) <- as.list(coef(m.dia))
+
+f2008.dia <- ugarchforecast(data = return.dia["/2008-12"],
+                        fitORspec = sfinal.dia,
+                        n.ahead = 252)
+f2019.dia <- ugarchforecast(data = return.dia["/2019-12"],
+                        fitORspec = sfinal.dia,
+                        n.ahead = 252)
+par(mfrow = c(1,1))
+plot(sigma(f2008.dia))
+plot(sigma(f2019.dia))
+
+sim.dia <- ugarchpath(spec = sfinal.dia,
+                  m.sim = 3,
+                  n.sim = 1*252,
+                  rseed = 123)
+plot.zoo(fitted(sim.dia))
+plot.zoo(sigma(sim.dia))
+p.dia <- 3575300*apply(fitted(sim.dia), 2, 'cumsum') + 3575300
+matplot(p.dia, type = "l", lwd = 3)
+# AAPL
+s.aapl <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                variance.model = list(model = "gjrGARCH"),
+                distribution.model = 'sstd')
+m.aapl <- ugarchfit(data = return.aapl, spec = s.aapl)
+plot(m.aapl, which = 'all')
+sfinal.aapl <- s.aapl
+setfixed(sfinal.aapl) <- as.list(coef(m.aapl))
+
+f2008.aapl <- ugarchforecast(data = return.aapl["/2008-12"],
+                        fitORspec = sfinal.aapl,
+                        n.ahead = 252)
+f2019.aapl <- ugarchforecast(data = return.aapl["/2019-12"],
+                        fitORspec = sfinal.aapl,
+                        n.ahead = 252)
+par(mfrow = c(1,1))
+plot(sigma(f2008.aapl))
+plot(sigma(f2019.aapl))
+
+sim.aapl <- ugarchpath(spec = sfinal.aapl,
+                  m.sim = 3,
+                  n.sim = 1*252,
+                  rseed = 123)
+plot.zoo(fitted(sim.aapl))
+plot.zoo(sigma(sim.aapl))
+p.aapl <- 364.11*apply(fitted(sim.aapl), 2, 'cumsum') + 364.11
+matplot(p.aapl, type = "l", lwd = 3)
+# AMZN
+s.amzn <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                variance.model = list(model = "gjrGARCH"),
+                distribution.model = 'sstd')
+m.amzn <- ugarchfit(data = return.amzn, spec = s.amzn)
+plot(m.amzn, which = 'all')
+sfinal.amzn <- s.amzn
+setfixed(sfinal.amzn) <- as.list(coef(m.amzn))
+
+f2008.amzn <- ugarchforecast(data = return.amzn["/2008-12"],
+                        fitORspec = sfinal.amzn,
+                        n.ahead = 252)
+f2019.amzn <- ugarchforecast(data = return.amzn["/2019-12"],
+                        fitORspec = sfinal.amzn,
+                        n.ahead = 252)
+par(mfrow = c(1,1))
+plot(sigma(f2008.amzn))
+plot(sigma(f2019.amzn))
+
+sim.amzn <- ugarchpath(spec = sfinal.amzn,
+                  m.sim = 3,
+                  n.sim = 1*252,
+                  rseed = 123)
+plot.zoo(fitted(sim.amzn))
+plot.zoo(sigma(sim.amzn))
+p.amzn <- 2878.70*apply(fitted(sim.amzn), 2, 'cumsum') + 2878.70
+matplot(p.amzn, type = "l", lwd = 3)
+# TSLA
+s.tsla <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                variance.model = list(model = "gjrGARCH"),
+                distribution.model = 'sstd')
+m.tsla <- ugarchfit(data = return.tsla, spec = s.tsla)
+plot(m.tsla, which = 'all')
+sfinal.tsla <- s.tsla
+setfixed(sfinal.tsla) <- as.list(coef(m.tsla))
+
+f2010.tsla <- ugarchforecast(data = return.tsla["/2010-12"],
+                        fitORspec = sfinal.tsla,
+                        n.ahead = 252)
+f2019.tsla <- ugarchforecast(data = return.tsla["/2019-12"],
+                        fitORspec = sfinal.tsla,
+                        n.ahead = 252)
+par(mfrow = c(1,1))
+plot(sigma(f2010.tsla))
+plot(sigma(f2019.tsla))
+
+sim.tsla <- ugarchpath(spec = sfinal.tsla,
+                  m.sim = 3,
+                  n.sim = 1*252,
+                  rseed = 123)
+plot.zoo(fitted(sim.tsla))
+plot.zoo(sigma(sim.tsla))
+p.tsla <- 1119.63*apply(fitted(sim.tsla), 2, 'cumsum') + 1119.63
+matplot(p.tsla, type = "l", lwd = 3)
+```
+
